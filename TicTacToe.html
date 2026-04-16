@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>井字過三關 - 專業優化版</title>
+    <style>
+        :root {
+            --bg-color: #2A5298;
+            --panel-bg: rgba(255, 255, 255, 0.95);
+            --primary-color: #00d2ff;
+            --text-main: #2c3e50;
+            --cell-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            --win-bg: #2ecc71;
+            /* 顏色變數 */
+            --player-color: #E83E8C;
+            --ai-color: #007BFF;
+            --ad-height: 60px;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'Segoe UI', Roboto, 'PingFang HK', Helvetica, Arial, sans-serif;
+            user-select: none;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at center, rgba(255,255,255,0.05) 0%, transparent 100%);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            overflow: hidden;
+            padding-top: env(safe-area-inset-top, 20px);
+            /* 為底部固定廣告留出空間 */
+            padding-bottom: var(--ad-height);
+        }
+
+        .header-area {
+            width: 100%;
+            max-width: 500px;
+            padding: 15px;
+            text-align: center;
+            z-index: 100;
+        }
+
+        .top-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .icon-btn {
+            background: rgba(255, 255, 255, 0.15);
+            width: 45px;
+            height: 45px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            border: 1px solid rgba(255,255,255,0.2);
+            backdrop-filter: blur(10px);
+            cursor: pointer;
+        }
+
+        h1 { 
+            font-size: clamp(1.4rem, 7vw, 2rem); 
+            margin: 0; 
+            text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            letter-spacing: 1px;
+        }
+
+        .status-bar {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 25px;
+            border-radius: 30px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            border: 1px solid rgba(255,255,255,0.2);
+            display: inline-block;
+            min-width: 220px;
+            backdrop-filter: blur(5px);
+        }
+
+        .game-container {
+            flex-grow: 1;
+            width: 95%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-gap: 15px;
+            background: rgba(0, 0, 0, 0.1);
+            padding: 15px;
+            border-radius: 25px;
+            width: 100%;
+            aspect-ratio: 1 / 1;
+        }
+
+        .cell {
+            background: var(--panel-bg);
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(2.5rem, 18vw, 4rem);
+            font-weight: 900;
+            color: var(--text-main);
+            box-shadow: var(--cell-shadow);
+            width: 100%;
+            height: 100%;
+            aspect-ratio: 1 / 1;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+            overflow: hidden;
+            line-height: 1;
+        }
+
+        .cell.fading {
+            animation: pulseFade 1.5s infinite;
+        }
+        @keyframes pulseFade {
+            0%, 100% { opacity: 0.35; transform: scale(0.95); }
+            50% { opacity: 0.7; transform: scale(1); }
+        }
+
+        .cell.sign-x { color: var(--ai-color); }
+        .cell.sign-o { color: var(--player-color); }
+        .cell.winner { background: var(--win-bg) !important; color: white !important; transform: scale(1.05); z-index: 2; }
+
+        /* 修改後的固定廣告橫幅 CSS */
+        .ad-banner {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: white;
+            border-top: 1px solid #eee;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            padding: 2px 0;
+            min-height: 54px;
+        }
+        .ad-label { font-size: 9px; color: #bbb; margin-bottom: 2px; }
+
+        .overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: none; align-items: center; justify-content: center;
+            z-index: 3000; /* 高於廣告 */
+            backdrop-filter: blur(10px);
+        }
+
+        .modal {
+            background: white;
+            width: 88%;
+            max-width: 350px;
+            padding: 30px 20px;
+            border-radius: 30px;
+            color: var(--text-main);
+            text-align: center;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+        }
+
+        .modal h2 { margin-top: 0; color: #2A5298; font-size: 1.8rem; }
+        .modal h3 { margin: 15px 0 8px; font-size: 0.85rem; color: #95a5a6; text-transform: uppercase; letter-spacing: 1px; }
+
+        .choice-row { display: flex; gap: 10px; margin-bottom: 10px; }
+
+        .btn-choice {
+            padding: 12px;
+            border-radius: 15px;
+            border: 2px solid #f0f0f0;
+            background: #f8f9fa;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            flex: 1;
+            transition: all 0.2s;
+        }
+
+        .btn-choice.active {
+            background: #eefbff;
+            border-color: #2A5298;
+            color: #2A5298;
+        }
+
+        .btn-start {
+            margin-top: 15px;
+            background: #2A5298;
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 15px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            width: 100%;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-area">
+        <div class="top-row">
+            <div class="icon-btn" id="audioToggle" onclick="toggleAudio()">🔊</div>
+            <h1 id="i18n-title">🎮 井字過三關</h1>
+            <div class="icon-btn" onclick="showStartPopup()">⚙️</div>
+        </div>
+        <div id="status" class="status-bar">...</div>
+    </div>
+
+    <div class="game-container">
+        <div class="board" id="board">
+            <div class="cell" data-index="0"></div>
+            <div class="cell" data-index="1"></div>
+            <div class="cell" data-index="2"></div>
+            <div class="cell" data-index="3"></div>
+            <div class="cell" data-index="4"></div>
+            <div class="cell" data-index="5"></div>
+            <div class="cell" data-index="6"></div>
+            <div class="cell" data-index="7"></div>
+            <div class="cell" data-index="8"></div>
+        </div>
+    </div>
+
+    <!-- 設定彈窗 -->
+    <div class="overlay" id="startOverlay" style="display: flex;">
+        <div class="modal">
+            <h2 id="i18n-settings-title">⚔️ 遊戲設定</h2>
+            
+            <h3 id="i18n-mode-label">遊戲模式</h3>
+            <div class="choice-row">
+                <button id="mode-classic" class="btn-choice active" onclick="setMode('classic')">⚖️ 經典</button>
+                <button id="mode-infinite" class="btn-choice" onclick="setMode('infinite')">🌊 流動</button>
+            </div>
+
+            <h3 id="i18n-diff-label">難度等級</h3>
+            <div class="choice-row">
+                <button id="diff-easy" class="btn-choice active" onclick="setDifficulty('easy')">🌱 簡單</button>
+                <button id="diff-hard" class="btn-choice" onclick="setDifficulty('hard')">🔥 困難</button>
+            </div>
+
+            <h3 id="i18n-turn-label">誰先下棋？</h3>
+            <div style="display: flex; gap: 10px;">
+                <button id="i18n-btn-player" class="btn-start" style="background: var(--player-color);" onclick="startGame('player')">玩家 (O)</button>
+                <button id="i18n-btn-ai" class="btn-start" style="background: var(--ai-color);" onclick="startGame('ai')">電腦 (X)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 結算彈窗 -->
+    <div class="overlay" id="resultOverlay">
+        <div class="modal">
+            <h2 id="resultTitle">遊戲結束</h2>
+            <p id="resultMsg" style="font-size: 1.1rem; color: #7f8c8d; margin: 15px 0;"></p>
+            <button id="i18n-btn-replay" class="btn-start" onclick="showStartPopup()">🔁 再玩一次</button>
+        </div>
+    </div>
+
+    <script>
+        const i18n = {
+            zh: {
+                title: "🎮 井字過三關",
+                settingsTitle: "⚔️ 遊戲設定",
+                modeLabel: "遊戲模式",
+                diffLabel: "難度等級",
+                turnLabel: "誰先下棋？",
+                modeClassic: "⚖️ 經典",
+                modeInfinite: "🌊 流動",
+                diffEasy: "🌱 簡單",
+                diffHard: "🔥 困難",
+                btnPlayer: "玩家 (O)",
+                btnAI: "電腦 (X)",
+                btnReplay: "🔁 再玩一次",
+                statusReady: "準備開戰...",
+                statusYourTurn: "👉 你的回合",
+                statusAIThinking: "🤖 AI 思考中...",
+                draw: "🤝 雙方平手",
+                drawMsg: "勢均力敵，這場平局！",
+                win: "🏆 你贏了！",
+                winMsg: "太強了！你擊敗了最強 AI。",
+                lose: "💻 AI 獲勝",
+                loseMsg: "AI 已精準計算出勝局。"
+            },
+            en: {
+                title: "🎮 Tic Tac Toe",
+                settingsTitle: "⚔️ Settings",
+                modeLabel: "Game Mode",
+                diffLabel: "Difficulty",
+                turnLabel: "Who Starts?",
+                modeClassic: "⚖️ Classic",
+                modeInfinite: "🌊 Infinite",
+                diffEasy: "🌱 Easy",
+                diffHard: "🔥 Hard",
+                btnPlayer: "Player (O)",
+                btnAI: "AI (X)",
+                btnReplay: "🔁 Replay",
+                statusReady: "Ready...",
+                statusYourTurn: "👉 Your Turn",
+                statusAIThinking: "🤖 AI Thinking...",
+                draw: "🤝 It's a Draw",
+                drawMsg: "A perfect match, no winners!",
+                win: "🏆 You Win!",
+                winMsg: "Incredible! You beat the elite AI.",
+                lose: "💻 AI Wins",
+                loseMsg: "The AI outplayed you this time."
+            }
+        };
+
+        const userLang = navigator.language || navigator.userLanguage;
+        const lang = userLang.toLowerCase().includes('zh') ? 'zh' : 'en';
+        const t = i18n[lang];
+
+        function initLanguage() {
+            document.getElementById('i18n-title').innerText = t.title;
+            document.getElementById('i18n-settings-title').innerText = t.settingsTitle;
+            document.getElementById('i18n-mode-label').innerText = t.modeLabel;
+            document.getElementById('i18n-diff-label').innerText = t.diffLabel;
+            document.getElementById('i18n-turn-label').innerText = t.turnLabel;
+            document.getElementById('mode-classic').innerText = t.modeClassic;
+            document.getElementById('mode-infinite').innerText = t.modeInfinite;
+            document.getElementById('diff-easy').innerText = t.diffEasy;
+            document.getElementById('diff-hard').innerText = t.diffHard;
+            document.getElementById('i18n-btn-player').innerText = t.btnPlayer;
+            document.getElementById('i18n-btn-ai').innerText = t.btnAI;
+            document.getElementById('i18n-btn-replay').innerText = t.btnReplay;
+            document.getElementById('status').innerText = t.statusReady;
+        }
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let audioEnabled = true;
+        let difficulty = "easy";
+        let gameMode = "classic"; 
+        let board = ["", "", "", "", "", "", "", "", ""];
+        let moveHistory = { "O": [], "X": [] }; 
+        let gameActive = false;
+        let isThinking = false;
+        let currentPlayer = "O";
+
+        function toggleAudio() {
+            audioEnabled = !audioEnabled;
+            document.getElementById('audioToggle').innerText = audioEnabled ? "🔊" : "🔇";
+        }
+
+        function playTone(freq, type, duration, vol = 0.1) {
+            if (!audioEnabled) return;
+            try {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + duration);
+            } catch(e) {}
+        }
+
+        function playDrawSound() {
+            if (!audioEnabled) return;
+            const freqs = [330, 392, 440];
+            freqs.forEach((f, i) => {
+                setTimeout(() => playTone(f, 'triangle', 0.6, 0.08), i * 50);
+            });
+        }
+
+        function playWinSound() { 
+            [523, 659, 783, 1046].forEach((f,i) => setTimeout(()=>playTone(f,'sine',0.4, 0.1), i*100));
+        }
+
+        function playLoseSound() {
+            [440, 349, 261, 196].forEach((f,i) => setTimeout(()=>playTone(f,'sawtooth',0.5, 0.05), i*150));
+        }
+
+        function setMode(mode) {
+            gameMode = mode;
+            document.getElementById('mode-classic').classList.toggle('active', mode === 'classic');
+            document.getElementById('mode-infinite').classList.toggle('active', mode === 'infinite');
+            playTone(440, 'sine', 0.1);
+        }
+
+        function setDifficulty(level) {
+            difficulty = level;
+            document.getElementById('diff-easy').classList.toggle('active', level === 'easy');
+            document.getElementById('diff-hard').classList.toggle('active', level === 'hard');
+            playTone(440, 'sine', 0.1);
+        }
+
+        function showStartPopup() {
+            document.getElementById('resultOverlay').style.display = 'none';
+            document.getElementById('startOverlay').style.display = 'flex';
+        }
+
+        function startGame(who) {
+            playTone(523, 'square', 0.2);
+            document.getElementById('startOverlay').style.display = 'none';
+            board = Array(9).fill("");
+            moveHistory = { "O": [], "X": [] };
+            gameActive = true;
+            isThinking = false;
+            resetUI();
+            currentPlayer = (who === 'ai') ? "X" : "O";
+            updateStatus();
+            if(who === 'ai') { isThinking = true; setTimeout(aiMove, 600); }
+        }
+
+        function resetUI() {
+            document.querySelectorAll('.cell').forEach(c => {
+                c.innerText = "";
+                c.className = "cell";
+            });
+        }
+
+        function handleCellClick(e) {
+            if (!gameActive || isThinking || currentPlayer !== "O") return;
+            const idx = parseInt(e.target.dataset.index);
+            const isMyOldest = (gameMode === "infinite" && moveHistory["O"].length === 3 && moveHistory["O"][0] === idx);
+            
+            if (board[idx] === "" || isMyOldest) {
+                playTone(600, 'triangle', 0.1);
+                executeMove(idx, "O");
+                if (gameActive) {
+                    isThinking = true;
+                    updateStatus();
+                    setTimeout(aiMove, 800);
+                }
+            } else {
+                playTone(200, 'sine', 0.1);
+            }
+        }
+
+        function executeMove(idx, sign) {
+            if (board[idx] === sign && gameMode === "infinite") {
+                moveHistory[sign] = moveHistory[sign].filter(i => i !== idx);
+            }
+
+            if (gameMode === "infinite" && moveHistory[sign].length >= 3) {
+                const oldestIdx = moveHistory[sign].shift();
+                board[oldestIdx] = "";
+                const oldCell = document.querySelector(`[data-index='${oldestIdx}']`);
+                oldCell.innerText = "";
+                oldCell.className = "cell";
+            }
+
+            board[idx] = sign;
+            if (gameMode === "infinite") moveHistory[sign].push(idx);
+            
+            const cell = document.querySelector(`[data-index='${idx}']`);
+            cell.innerText = sign;
+            cell.className = "cell " + (sign === "O" ? "sign-o" : "sign-x");
+
+            document.querySelectorAll('.cell').forEach(c => c.classList.remove('fading'));
+            if (gameMode === "infinite") {
+                ["O", "X"].forEach(s => {
+                    if (moveHistory[s].length === 3) {
+                        const target = document.querySelector(`[data-index='${moveHistory[s][0]}']`);
+                        if (target) target.classList.add('fading');
+                    }
+                });
+            }
+
+            if (checkWin(board, sign)) {
+                endGame(sign);
+            } else if (gameMode === "classic" && board.every(c => c !== "")) {
+                endGame("draw");
+            } else {
+                currentPlayer = (sign === "O") ? "X" : "O";
+                updateStatus();
+            }
+        }
+
+        function aiMove() {
+            if (!gameActive) return;
+            let move;
+            
+            if (difficulty === "hard") {
+                move = getBestMove();
+            } else {
+                const candidates = board.map((v, i) => v === "" ? i : null).filter(v => v !== null);
+                move = candidates.find(idx => {
+                    let testB = [...board]; testB[idx] = "X"; return checkWin(testB, "X");
+                }) || candidates.find(idx => {
+                    let testB = [...board]; testB[idx] = "O"; return checkWin(testB, "O");
+                }) || candidates[Math.floor(Math.random() * candidates.length)];
+            }
+
+            if (move !== undefined) {
+                playTone(400, 'triangle', 0.1);
+                executeMove(move, "X");
+            }
+            isThinking = false;
+        }
+
+        function minimax(currBoard, depth, isMaximizing, currHistory) {
+            if (checkWin(currBoard, "X")) return 10 - depth;
+            if (checkWin(currBoard, "O")) return depth - 10;
+            if (gameMode === "classic" && currBoard.every(c => c !== "")) return 0;
+            if (depth >= 5 && gameMode === "infinite") return 0;
+
+            if (isMaximizing) {
+                let bestScore = -Infinity;
+                const moves = getVirtualCandidates(currBoard, currHistory, "X");
+                for (let m of moves) {
+                    let nextB = [...currBoard];
+                    let nextH = { "O": [...currHistory["O"]], "X": [...currHistory["X"]] };
+                    applyVirtualMove(nextB, nextH, m, "X");
+                    let score = minimax(nextB, depth + 1, false, nextH);
+                    bestScore = Math.max(score, bestScore);
+                }
+                return bestScore;
+            } else {
+                let bestScore = Infinity;
+                const moves = getVirtualCandidates(currBoard, currHistory, "O");
+                for (let m of moves) {
+                    let nextB = [...currBoard];
+                    let nextH = { "O": [...currHistory["O"]], "X": [...currHistory["X"]] };
+                    applyVirtualMove(nextB, nextH, m, "O");
+                    let score = minimax(nextB, depth + 1, true, nextH);
+                    bestScore = Math.min(score, bestScore);
+                }
+                return bestScore;
+            }
+        }
+
+        function getBestMove() {
+            let bestScore = -Infinity;
+            let move;
+            const candidates = getVirtualCandidates(board, moveHistory, "X");
+            for (let m of candidates) {
+                let nextB = [...board];
+                let nextH = { "O": [...moveHistory["O"]], "X": [...moveHistory["X"]] };
+                applyVirtualMove(nextB, nextH, m, "X");
+                let score = minimax(nextB, 0, false, nextH);
+                if (score > bestScore) {
+                    bestScore = score;
+                    move = m;
+                }
+            }
+            return move;
+        }
+
+        function getVirtualCandidates(b, h, p) {
+            let myOldest = (gameMode === "infinite" && h[p].length === 3) ? h[p][0] : null;
+            return b.map((v, i) => (v === "" || i === myOldest) ? i : null).filter(v => v !== null);
+        }
+
+        function applyVirtualMove(b, h, idx, p) {
+            if (b[idx] === p && gameMode === "infinite") h[p] = h[p].filter(i => i !== idx);
+            if (gameMode === "infinite" && h[p].length >= 3) b[h[p].shift()] = "";
+            b[idx] = p;
+            if (gameMode === "infinite") h[p].push(idx);
+        }
+
+        function checkWin(b, p) {
+            const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+            return wins.some(c => c.every(i => b[i] === p));
+        }
+
+        function updateStatus() {
+            document.getElementById('status').innerText = (currentPlayer === "O") ? t.statusYourTurn : t.statusAIThinking;
+        }
+
+        function endGame(result) {
+            gameActive = false;
+            const title = document.getElementById('resultTitle');
+            const msg = document.getElementById('resultMsg');
+            
+            if (result === "draw") {
+                title.innerText = t.draw;
+                msg.innerText = t.drawMsg;
+                playDrawSound();
+            } else {
+                if (result === "O") {
+                    title.innerText = t.win;
+                    msg.innerText = t.winMsg;
+                    playWinSound();
+                } else {
+                    title.innerText = t.lose;
+                    msg.innerText = t.loseMsg;
+                    playLoseSound();
+                }
+                const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+                const line = wins.find(c => c.every(i => board[i] === result));
+                if (line) line.forEach(i => document.querySelector(`[data-index='${i}']`).classList.add('winner'));
+            }
+            
+            setTimeout(() => {
+                document.getElementById('resultOverlay').style.display = 'flex';
+                document.querySelectorAll('.cell').forEach(c => c.classList.remove('fading'));
+            }, 1000);
+        }
+
+        initLanguage();
+        document.querySelectorAll('.cell').forEach(c => c.addEventListener('click', handleCellClick));
+    </script>
+</body>
+</html>
